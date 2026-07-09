@@ -10,6 +10,7 @@ import in.northwestw.shortcircuit.registries.Blocks;
 import in.northwestw.shortcircuit.registries.blockentities.CircuitBlockEntity;
 import in.northwestw.shortcircuit.registries.blockentities.IntegratedCircuitBlockEntity;
 import in.northwestw.shortcircuit.registries.blocks.CircuitBoardBlock;
+import in.northwestw.shortcircuit.ShortCircuitCommon;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -30,6 +31,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -43,15 +45,29 @@ public class PokingStickItem extends Item {
     public PokingStickItem(Properties properties) {
         super(properties);
     }
+    
+    @Override
+    public int getUseDuration(ItemStack stack) {
+        return 72000;
+    }
+    
+    @Override
+    public UseAnim getUseAnimation(ItemStack stack) {
+        return UseAnim.NONE;
+    }
 
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         HitResult hitresult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
-        if (hitresult.getType() == HitResult.Type.MISS) return this.cycleBlockSize(level, player.getItemInHand(hand), player);
+        if (hitresult.getType() == HitResult.Type.MISS) {
+            this.cycleBlockSize(level, player.getItemInHand(hand), player);
+            player.startUsingItem(hand);
+            return InteractionResultHolder.consume(player.getItemInHand(hand));
+        }
         return super.use(level, player, hand);
     }
 
-    @Override
+    @Override  
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();
         BlockPos pos = context.getClickedPos();
@@ -62,7 +78,9 @@ public class PokingStickItem extends Item {
         if (state.is(Blocks.CIRCUIT.get())) return this.useOnCircuitBlock(context);
         if (state.is(Blocks.INTEGRATED_CIRCUIT.get())) return this.useOnIntegratedCircuitBlock(context);
 
-        return this.cycleBlockSize(level, stack, player).getResult();
+        this.cycleBlockSize(level, stack, player);
+        player.startUsingItem(context.getHand());
+        return InteractionResult.CONSUME;
     }
 
     private InteractionResult useOnCircuitBlock(UseOnContext context) {
@@ -138,21 +156,20 @@ public class PokingStickItem extends Item {
 
     private static final int CYCLE_INTERVAL = 10;
 
-    private InteractionResultHolder<ItemStack> cycleBlockSize(Level level, ItemStack stack, Player player) {
-        if (!level.isClientSide) {
-            CompoundTag tag = stack.getOrCreateTag();
-            long last = tag.getLong("lastCycleTick");
-            long now = level.getGameTime();
-            if (now - last < CYCLE_INTERVAL) return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
-            short old = tag.contains("size", CompoundTag.TAG_SHORT) ? tag.getShort("size") : 4;
-            short newVal = old == 256 ? 4 : (short) (old * 2);
-            tag.putShort("size", newVal);
-            tag.putLong("lastCycleTick", now);
-            stack.setTag(tag);
-            player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
+    private void cycleBlockSize(Level level, ItemStack stack, Player player) {
+        CompoundTag tag = stack.getOrCreateTag();
+        short old = tag.contains("size", CompoundTag.TAG_SHORT) ? tag.getShort("size") : 4;
+        short newVal = old == 256 ? 4 : (short) (old * 2);
+        tag.putShort("size", newVal);
+        stack.setTag(tag);
+        ShortCircuitCommon.LOGGER.info("[PokingStick] side={} old={} newVal={} hasSizeTag={} stackId={}",
+                level.isClientSide ? "client" : "server", old, newVal,
+                tag.contains("size", CompoundTag.TAG_SHORT), System.identityHashCode(stack));
+        if (level.isClientSide) {
             player.playSound(SoundEvents.CHICKEN_EGG);
+        } else {
+            player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
         }
-        return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
     }
 
     private DimensionTransition getDimensionTransition(UUID uuid, Level level) {
