@@ -136,17 +136,21 @@ public class PokingStickItem extends Item {
         return size < 4 ? 4 : size;
     }
 
+    private static final int CYCLE_INTERVAL = 10;
+
     private InteractionResultHolder<ItemStack> cycleBlockSize(Level level, ItemStack stack, Player player) {
-        if (player.getCooldowns().isOnCooldown(this)) return InteractionResultHolder.pass(stack);
         if (!level.isClientSide) {
             CompoundTag tag = stack.getOrCreateTag();
+            long last = tag.getLong("lastCycleTick");
+            long now = level.getGameTime();
+            if (now - last < CYCLE_INTERVAL) return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
             short old = tag.contains("size", CompoundTag.TAG_SHORT) ? tag.getShort("size") : 4;
             short newVal = old == 256 ? 4 : (short) (old * 2);
             tag.putShort("size", newVal);
+            tag.putLong("lastCycleTick", now);
             stack.setTag(tag);
             player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
             player.playSound(SoundEvents.CHICKEN_EGG);
-            player.getCooldowns().addCooldown(this, 10);
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
     }
