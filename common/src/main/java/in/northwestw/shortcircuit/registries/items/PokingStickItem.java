@@ -48,7 +48,7 @@ public class PokingStickItem extends Item {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         HitResult hitresult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
         if (hitresult.getType() == HitResult.Type.MISS) return this.cycleBlockSize(level, player.getItemInHand(hand), player);
-        return super.use(level, player, hand); 
+        return super.use(level, player, hand);
     }
 
     @Override
@@ -137,20 +137,17 @@ public class PokingStickItem extends Item {
     }
 
     private InteractionResultHolder<ItemStack> cycleBlockSize(Level level, ItemStack stack, Player player) {
-        if (player.getCooldowns().isOnCooldown(this)) {
-            return InteractionResultHolder.pass(stack);
+        if (player.getCooldowns().isOnCooldown(this)) return InteractionResultHolder.pass(stack);
+        if (!level.isClientSide) {
+            CompoundTag tag = stack.getOrCreateTag();
+            short old = tag.contains("size", CompoundTag.TAG_SHORT) ? tag.getShort("size") : 4;
+            short newVal = old == 256 ? 4 : (short) (old * 2);
+            tag.putShort("size", newVal);
+            stack.setTag(tag);
+            player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
         }
-        if (level.isClientSide) {
-            return InteractionResultHolder.success(stack);
-        }
-        CompoundTag tag = stack.getOrCreateTag();
-        short old = tag.contains("size", CompoundTag.TAG_SHORT) ? tag.getShort("size") : 4;
-        short newVal = old == 256 ? 4 : (short) (old * 2);
-        tag.putShort("size", newVal);
-        stack.setTag(tag);
-        player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
+        player.getCooldowns().addCooldown(this, 10);
         player.playSound(SoundEvents.CHICKEN_EGG);
-        player.getCooldowns().addCooldown(this, 4);
         return InteractionResultHolder.success(stack);
     }
 
