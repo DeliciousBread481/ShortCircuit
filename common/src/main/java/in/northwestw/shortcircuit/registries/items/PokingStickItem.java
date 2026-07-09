@@ -47,8 +47,8 @@ public class PokingStickItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         HitResult hitresult = getPlayerPOVHitResult(level, player, ClipContext.Fluid.NONE);
-        if (hitresult.getType() == HitResult.Type.MISS) return this.cycleBlockSize(player.getItemInHand(hand), player);
-        return super.use(level, player, hand);
+        if (hitresult.getType() == HitResult.Type.MISS) return this.cycleBlockSize(level, player.getItemInHand(hand), player);
+        return super.use(level, player, hand); 
     }
 
     @Override
@@ -62,7 +62,7 @@ public class PokingStickItem extends Item {
         if (state.is(Blocks.CIRCUIT.get())) return this.useOnCircuitBlock(context);
         if (state.is(Blocks.INTEGRATED_CIRCUIT.get())) return this.useOnIntegratedCircuitBlock(context);
 
-        return this.cycleBlockSize(stack, player).getResult();
+        return this.cycleBlockSize(level, stack, player).getResult();
     }
 
     private InteractionResult useOnCircuitBlock(UseOnContext context) {
@@ -136,7 +136,13 @@ public class PokingStickItem extends Item {
         return size < 4 ? 4 : size;
     }
 
-    private InteractionResultHolder<ItemStack> cycleBlockSize(ItemStack stack, Player player) {
+    private InteractionResultHolder<ItemStack> cycleBlockSize(Level level, ItemStack stack, Player player) {
+        if (player.getCooldowns().isOnCooldown(this)) {
+            return InteractionResultHolder.pass(stack);
+        }
+        if (level.isClientSide) {
+            return InteractionResultHolder.success(stack);
+        }
         CompoundTag tag = stack.getOrCreateTag();
         short old = tag.contains("size", CompoundTag.TAG_SHORT) ? tag.getShort("size") : 4;
         short newVal = old == 256 ? 4 : (short) (old * 2);
@@ -144,6 +150,7 @@ public class PokingStickItem extends Item {
         stack.setTag(tag);
         player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
         player.playSound(SoundEvents.CHICKEN_EGG);
+        player.getCooldowns().addCooldown(this, 4);
         return InteractionResultHolder.success(stack);
     }
 
