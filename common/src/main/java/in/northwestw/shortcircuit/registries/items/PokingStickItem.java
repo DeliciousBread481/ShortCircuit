@@ -145,10 +145,10 @@ public class PokingStickItem extends Item {
             tag.putShort("size", newVal);
             stack.setTag(tag);
             player.displayClientMessage(Component.translatable("action.poking_stick.change", newVal), true);
+            player.playSound(SoundEvents.CHICKEN_EGG);
+            player.getCooldowns().addCooldown(this, 10);
         }
-        player.getCooldowns().addCooldown(this, 10);
-        player.playSound(SoundEvents.CHICKEN_EGG);
-        return InteractionResultHolder.success(stack);
+        return InteractionResultHolder.sidedSuccess(stack, level.isClientSide());
     }
 
     private DimensionTransition getDimensionTransition(UUID uuid, Level level) {
